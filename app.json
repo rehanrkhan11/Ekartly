@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Kartly",
+    "slug": "kartly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1c4fa3"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kartly.app"
+    },
+    "android": {
+      "package": "com.kartly.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#1c4fa3"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
