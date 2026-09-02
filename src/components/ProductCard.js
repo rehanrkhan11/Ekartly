@@ -5,10 +5,14 @@ import { inr } from "../utils/format";
 import { titleCase } from "../theme/categoryThemes";
 import { useShop } from "../context/ShopContext";
 
-export default function ProductCard({ product }) {
+function ProductCard({ product }) {
   const { theme, wishlist, toggleWishlist, cart, addToCart, changeQty, setSelectedProduct } = useShop();
   const inWishlist = !!wishlist[product.id];
   const qtyInCart = cart[product.id]?.qty || 0;
+
+  // Safe theme color extraction
+  const primaryBg = theme?.bg?.[1] || "#0f172a";
+  const accentColor = theme?.accent || "#fbbf24";
 
   const cardScale = useRef(new Animated.Value(1)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -35,6 +39,12 @@ export default function ProductCard({ product }) {
     addToCart(product);
   };
 
+  // Safe discount & original price calculation
+  const hasDiscount = product.discountPercentage > 0 && product.discountPercentage < 100;
+  const originalPrice = hasDiscount
+    ? product.price / (1 - product.discountPercentage / 100)
+    : product.price;
+
   return (
     <Animated.View style={[styles.card, { transform: [{ scale: cardScale }] }]}>
       <TouchableOpacity
@@ -44,17 +54,17 @@ export default function ProductCard({ product }) {
         onPressOut={pressOut}
       >
         <View style={styles.imageWrap}>
-          {product.discountPercentage > 0 && (
+          {hasDiscount && (
             <View style={styles.discountBadge}>
               <Text style={styles.discountText}>{Math.round(product.discountPercentage)}% OFF</Text>
             </View>
           )}
-          <TouchableOpacity style={styles.heartBtn} onPress={onHeartPress} hitSlop={6}>
+          <TouchableOpacity style={styles.heartBtn} onPress={onHeartPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Animated.View style={{ transform: [{ scale: heartScale }] }}>
               <Ionicons
                 name={inWishlist ? "heart" : "heart-outline"}
                 size={15}
-                color={inWishlist ? theme.bg[1] : "#94a3b8"}
+                color={inWishlist ? primaryBg : "#94a3b8"}
               />
             </Animated.View>
           </TouchableOpacity>
@@ -69,17 +79,17 @@ export default function ProductCard({ product }) {
 
           <View style={styles.ratingRow}>
             <View style={styles.ratingPill}>
-              <Text style={styles.ratingText}>{product.rating?.toFixed(1)}</Text>
+              <Text style={styles.ratingText}>{product.rating?.toFixed(1) || "0.0"}</Text>
               <Ionicons name="star" size={9} color="#fff" />
             </View>
-            <Text style={styles.stock}>({product.stock} in stock)</Text>
+            <Text style={styles.stock}>({product.stock ?? 0} in stock)</Text>
           </View>
 
           <View style={styles.priceRow}>
             <Text style={styles.price}>{inr(product.price)}</Text>
-            {product.discountPercentage > 0 && (
+            {hasDiscount && (
               <Text style={styles.strike}>
-                {inr(product.price / (1 - product.discountPercentage / 100))}
+                {inr(originalPrice)}
               </Text>
             )}
           </View>
@@ -90,27 +100,29 @@ export default function ProductCard({ product }) {
         <TouchableOpacity
           onPress={onAddPress}
           activeOpacity={0.85}
-          style={[styles.addBtn, { backgroundColor: theme.accent, borderColor: theme.bg[1] + "33" }]}
+          style={[styles.addBtn, { backgroundColor: accentColor, borderColor: primaryBg + "33" }]}
         >
           <Animated.View style={{ transform: [{ scale: addScale }], flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Ionicons name="cart-outline" size={13} color={theme.bg[1]} />
-            <Text style={[styles.addBtnText, { color: theme.bg[1] }]}>Add to Cart</Text>
+            <Ionicons name="cart-outline" size={13} color={primaryBg} />
+            <Text style={[styles.addBtnText, { color: primaryBg }]}>Add to Cart</Text>
           </Animated.View>
         </TouchableOpacity>
       ) : (
-        <Animated.View style={[styles.stepper, { borderColor: theme.bg[1], transform: [{ scale: addScale }] }]}>
+        <Animated.View style={[styles.stepper, { borderColor: primaryBg, transform: [{ scale: addScale }] }]}>
           <TouchableOpacity
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.stepperBtn}
             onPress={() => { bounce(addScale); changeQty(product.id, -1); }}
           >
-            <Ionicons name="remove" size={15} color={theme.bg[1]} />
+            <Ionicons name="remove" size={15} color={primaryBg} />
           </TouchableOpacity>
-          <Text style={[styles.stepperQty, { color: theme.bg[1] }]}>{qtyInCart}</Text>
+          <Text style={[styles.stepperQty, { color: primaryBg }]}>{qtyInCart}</Text>
           <TouchableOpacity
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.stepperBtn}
             onPress={() => { bounce(addScale); changeQty(product.id, 1); }}
           >
-            <Ionicons name="add" size={15} color={theme.bg[1]} />
+            <Ionicons name="add" size={15} color={primaryBg} />
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -172,3 +184,5 @@ const styles = StyleSheet.create({
   stepperBtn: { width: 26, height: 26, justifyContent: "center", alignItems: "center" },
   stepperQty: { fontWeight: "800", fontSize: 13 },
 });
+
+export default React.memo(ProductCard);

@@ -1,22 +1,21 @@
 import React from "react";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import SplashScreen from "../screens/SplashScreen";
+import { createStackNavigator } from "@react-navigation/stack";
 import BottomTabs from "./BottomTabs";
-import ProductModal from "../components/ProductModal";
-import Toast from "../components/Toast";
+import LocationScreen from "../screens/LocationScreen";
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 export default function RootNavigator() {
   return (
-    <>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Main" component={BottomTabs} />
-      </Stack.Navigator>
-      {/* Rendered above all screens so any tab can open a product or show a toast */}
-      <ProductModal />
-      <Toast />
-    </>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={BottomTabs} />
+      <Stack.Screen
+        name="Location"
+        component={LocationScreen}
+        options={{
+          presentation: "modal",
+        }}
+      />
+    </Stack.Navigator>
   );
 }

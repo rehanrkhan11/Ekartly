@@ -37,6 +37,7 @@ export default function HomeScreen({ navigation }) {
     closeSearch,
     setSelectedProduct,
     bootstrap,
+    selectedAddress,
   } = useShop();
 
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -46,10 +47,10 @@ export default function HomeScreen({ navigation }) {
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Reset pagination state when products, categories, or active search queries update
+  // Reset pagination state when search filter or category updates
   useEffect(() => {
     setPage(1);
-  }, [activeCategory, query, products]);
+  }, [activeCategory, query]);
 
   // Hardware back button handler for Android
   useEffect(() => {
@@ -105,6 +106,13 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
+  // Format delivery location string dynamically
+  const locationDisplay = selectedAddress
+    ? `${selectedAddress.pincode ? selectedAddress.pincode + " — " : ""}${
+        selectedAddress.address || selectedAddress.city || "Select Location"
+      }`
+    : "Select Delivery Address";
+
   return (
     <View style={styles.flex}>
       <LinearGradient
@@ -116,13 +124,20 @@ export default function HomeScreen({ navigation }) {
         <SafeAreaView edges={["top"]}>
           {!searchActive && (
             <View style={styles.deliverRow}>
-              <View style={styles.deliverLeft}>
-                <Ionicons name="location-outline" size={16} color="#fff" />
-                <View>
+              <TouchableOpacity
+                style={styles.deliverLeft}
+                activeOpacity={0.7}
+                onPress={() => navigation?.navigate("Location")}
+              >
+                <Ionicons name="location-outline" size={18} color="#fff" />
+                <View style={{ flexShrink: 1 }}>
                   <Text style={styles.deliverSmall}>Deliver to</Text>
-                  <Text style={styles.deliverBig}>110001 — Connaught Place</Text>
+                  <Text style={styles.deliverBig} numberOfLines={1}>
+                    {locationDisplay}
+                  </Text>
                 </View>
-              </View>
+                <Ionicons name="chevron-down" size={14} color="#fff" style={{ marginLeft: 2 }} />
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.cartIcon}
@@ -247,7 +262,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: "#f8fafc" },
   header: { paddingBottom: 22, overflow: "hidden" },
   deliverRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
-  deliverLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  deliverLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, marginRight: 12 },
   deliverSmall: { color: "rgba(255,255,255,0.7)", fontSize: 10 },
   deliverBig: { color: "#fff", fontSize: 12, fontWeight: "800" },
   cartIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center" },

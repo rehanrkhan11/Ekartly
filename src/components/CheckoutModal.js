@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -13,28 +12,38 @@ import { Ionicons } from "@expo/vector-icons";
 import { useShop } from "../context/ShopContext";
 import { inr } from "../utils/format";
 
-export default function CheckoutModal({ visible, onClose, discountAmount = 0 }) {
-  const { cartItems, cartTotal, clearCart, theme, flashToast } = useShop();
+export default function CheckoutModal({ visible, onClose, navigation, discountAmount = 0 }) {
+  const { cartItems, cartTotal, clearCart, theme, flashToast, selectedAddress } = useShop();
 
   const [paymentMethod, setPaymentMethod] = useState("upi");
-  const [address, setAddress] = useState("123, Block C, Connaught Place, New Delhi - 110001");
-  const [isEditingAddress, setIsEditingAddress] = useState(false);
 
   const finalTotal = Math.max(0, cartTotal - discountAmount);
 
+  const handleOpenLocationPicker = () => {
+    onClose();
+    if (navigation) {
+      navigation.navigate("Location");
+    }
+  };
+
   const handlePlaceOrder = () => {
-    if (!address.trim()) {
-      Alert.alert("Missing Address", "Please enter a valid shipping address.");
+    if (!selectedAddress) {
+      Alert.alert("Missing Address", "Please select a valid delivery address.");
       return;
     }
 
-    // Clear state & notify user
     clearCart();
     onClose();
     flashToast("🎉 Order placed successfully!");
   };
 
   if (!visible) return null;
+
+  const displayAddress = selectedAddress
+    ? `${selectedAddress.address}${selectedAddress.city ? `, ${selectedAddress.city}` : ""}${
+        selectedAddress.pincode ? ` - ${selectedAddress.pincode}` : ""
+      }`
+    : "No delivery address selected";
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
@@ -53,27 +62,19 @@ export default function CheckoutModal({ visible, onClose, discountAmount = 0 }) 
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.rowAlign}>
-                <Ionicons name="location-outline" size={18} color={theme.bg[1] || "#0f172a"} />
-                <Text style={styles.cardTitle}>Shipping Address</Text>
+                <Ionicons name="location-outline" size={18} color={theme?.bg?.[1] || "#0f172a"} />
+                <Text style={styles.cardTitle}>
+                  Shipping Address {selectedAddress?.label ? `(${selectedAddress.label})` : ""}
+                </Text>
               </View>
-              <TouchableOpacity onPress={() => setIsEditingAddress(!isEditingAddress)}>
-                <Text style={[styles.actionText, { color: theme.bg[1] }]}>
-                  {isEditingAddress ? "Save" : "Edit"}
+              <TouchableOpacity onPress={handleOpenLocationPicker}>
+                <Text style={[styles.actionText, { color: theme?.bg?.[1] || "#0f172a" }]}>
+                  Change
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {isEditingAddress ? (
-              <TextInput
-                style={styles.addressInput}
-                value={address}
-                onChangeText={setAddress}
-                multiline
-                numberOfLines={3}
-              />
-            ) : (
-              <Text style={styles.addressText}>{address}</Text>
-            )}
+            <Text style={styles.addressText}>{displayAddress}</Text>
           </View>
 
           {/* Payment Method Section */}
@@ -94,7 +95,7 @@ export default function CheckoutModal({ visible, onClose, discountAmount = 0 }) 
               <Ionicons
                 name={paymentMethod === "upi" ? "radio-button-on" : "radio-button-off"}
                 size={20}
-                color={paymentMethod === "upi" ? theme.bg[1] : "#cbd5e1"}
+                color={paymentMethod === "upi" ? theme?.bg?.[1] || "#0f172a" : "#cbd5e1"}
               />
             </TouchableOpacity>
 
@@ -112,7 +113,7 @@ export default function CheckoutModal({ visible, onClose, discountAmount = 0 }) 
               <Ionicons
                 name={paymentMethod === "card" ? "radio-button-on" : "radio-button-off"}
                 size={20}
-                color={paymentMethod === "card" ? theme.bg[1] : "#cbd5e1"}
+                color={paymentMethod === "card" ? theme?.bg?.[1] || "#0f172a" : "#cbd5e1"}
               />
             </TouchableOpacity>
 
@@ -124,13 +125,13 @@ export default function CheckoutModal({ visible, onClose, discountAmount = 0 }) 
                 <Ionicons name="cash-outline" size={20} color="#0f172a" />
                 <View style={{ marginLeft: 10 }}>
                   <Text style={styles.paymentMethodTitle}>Cash on Delivery (COD)</Text>
-                  <Text style={styles.paymentMethodSub}>Pay cash at door step</Text>
+                  <Text style={styles.paymentMethodSub}>Pay cash at doorstep</Text>
                 </View>
               </View>
               <Ionicons
                 name={paymentMethod === "cod" ? "radio-button-on" : "radio-button-off"}
                 size={20}
-                color={paymentMethod === "cod" ? theme.bg[1] : "#cbd5e1"}
+                color={paymentMethod === "cod" ? theme?.bg?.[1] || "#0f172a" : "#cbd5e1"}
               />
             </TouchableOpacity>
           </View>
@@ -171,7 +172,7 @@ export default function CheckoutModal({ visible, onClose, discountAmount = 0 }) 
           </View>
 
           <TouchableOpacity
-            style={[styles.placeOrderBtn, { backgroundColor: theme.bg[1] }]}
+            style={[styles.placeOrderBtn, { backgroundColor: theme?.bg?.[1] || "#0f172a" }]}
             onPress={handlePlaceOrder}
           >
             <Text style={styles.placeOrderText}>Confirm & Pay</Text>
@@ -218,15 +219,6 @@ const styles = StyleSheet.create({
   rowAlign: { flexDirection: "row", alignItems: "center" },
   actionText: { fontSize: 12, fontWeight: "700" },
   addressText: { fontSize: 13, color: "#475569", lineHeight: 18 },
-  addressInput: {
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 10,
-    padding: 10,
-    fontSize: 12,
-    color: "#0f172a",
-    textAlignVertical: "top",
-  },
   paymentOption: {
     flexDirection: "row",
     alignItems: "center",
@@ -248,7 +240,7 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 16, fontWeight: "800", color: "#0f172a" },
   footer: {
     flexDirection: "row",
-    justify: "space-between",
+    justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#fff",
     paddingHorizontal: 20,
