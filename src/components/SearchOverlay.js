@@ -1,365 +1,530 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
-  ActivityIndicator,
+  Modal,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
   FlatList,
   Image,
   StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+  SafeAreaView,
+  StatusBar,
+  ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useShop } from "../context/ShopContext";
 import { inr } from "../utils/format";
-import { titleCase } from "../theme/categoryThemes";
 
-const SEARCH_PAGE_SIZE = 5;
+const QUICK_SUGGESTIONS = ["Sneakers", "Headphones", "Watch", "T-Shirt", "Jacket", "Backpack"];
+const PAGE_SIZE = 8; // Controls how many items load per batch
 
-export default function SearchOverlay() {
-  const {
-    theme,
-    query,
-    submitSearch,
-    products,
-    searching,
-    recentSearches,
-    removeRecentSearch,
-    clearRecentSearches,
-    trendingSearches,
-    categories,
-    selectCategory,
-    setSelectedProduct,
-  } = useShop();
+// --- String Normalization Utility ---
+function normalizeText(str) {
+  if (!str) return "";
+  return String(str)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Accent strip
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")     // Punctuation & symbols strip
+    .replace(/\s+/g, " ")             // Collapse extra spaces
+    .trim();
+}
 
-  const [page, setPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
+// --- Levenshtein Distance Algorithm ---
+function getLevenshteinDistance(a, b) {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
 
-  // Reset pagination to Page 1 on query or products change
-  useEffect(() => {
-    setPage(1);
-  }, [query, products]);
+  const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
 
-  // Slice visible products according to page number
-  const visibleProducts = useMemo(() => {
-    return (products || []).slice(0, page * SEARCH_PAGE_SIZE);
-  }, [products, page]);
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
 
-  const totalResults = products ? products.length : 0;
-  const currentCount = visibleProducts.length;
-  const hasMore = currentCount < totalResults;
+// --- Dynamic Fuzzy Tolerance ---
+function getMaxAllowedDistance(wordLength) {
+  if (wordLength <= 3) return 0; // Short words must match exactly
+  if (wordLength <= 5) return 1; // 1 typo allowed
+  if (wordLength <= 8) return 2; // 2 typos allowed
+  return 3;                      // 3 typos allowed
+}
 
-  // Manual handler when user clicks "Show More"
-  const handleShowMore = () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    setTimeout(() => {
-      setPage((prev) => prev + 1);
-      setLoadingMore(false);
-    }, 200);
-  };
+// --- Multi-Tier Weighted Scoring ---
+function getFieldTokenScore(token, targetRawValue, fieldWeight) {
+  if (!targetRawValue) return 0;
 
-  const renderHeader = () => {
-    if (totalResults === 0) return null;
-    return (
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsHeaderText}>
-          Showing <Text style={styles.resultsHeaderBold}>{currentCount}</Text> of{" "}
-          <Text style={styles.resultsHeaderBold}>{totalResults}</Text> results
-        </Text>
-      </View>
-    );
-  };
+  const raw = String(targetRawValue).trim();
+  const norm = normalizeText(raw);
 
-  const renderFooter = () => {
-    if (!hasMore) return <View style={{ height: 20 }} />;
+  if (!norm) return 0;
 
-    return (
-      <View style={styles.footerContainer}>
-        <TouchableOpacity
-          style={[styles.showMoreButton, { borderColor: theme.bg[1] || "#0f172a" }]}
-          activeOpacity={0.7}
-          onPress={handleShowMore}
-          disabled={loadingMore}
-        >
-          {loadingMore ? (
-            <ActivityIndicator size="small" color={theme.bg[1] || "#0f172a"} />
-          ) : (
-            <>
-              <Text style={[styles.showMoreText, { color: theme.bg[1] || "#0f172a" }]}>
-                Show More ({totalResults - currentCount} remaining)
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={theme.bg[1] || "#0f172a"} />
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const isEmpty = !query.trim();
-
-  if (!isEmpty) {
-    return (
-      <View style={styles.fill}>
-        {searching ? (
-          <View style={styles.centerNote}>
-            <ActivityIndicator size="small" color={theme.bg[1] || "#0f172a"} />
-            <Text style={styles.centerNoteText}>Searching…</Text>
-          </View>
-        ) : products.length === 0 ? (
-          <View style={styles.centerNote}>
-            <Text style={{ fontSize: 32 }}>🤔</Text>
-            <Text style={styles.noResultsTitle}>No matches for "{query}"</Text>
-            <Text style={styles.noResultsSub}>
-              Double-check the spelling — misspelled or partial words still work.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={visibleProducts}
-            keyExtractor={(item) => String(item.id)}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingVertical: 8 }}
-            ListHeaderComponent={renderHeader}
-            ListFooterComponent={renderFooter}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.resultRow}
-                activeOpacity={0.7}
-                onPress={() => {
-                  submitSearch(item.title);
-                  setSelectedProduct(item);
-                }}
-              >
-                <Image
-                  source={{ uri: item.thumbnail }}
-                  style={styles.resultThumb}
-                  resizeMode="contain"
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.resultTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.resultBrand} numberOfLines={1}>
-                    {item.brand || titleCase(item.category)}
-                  </Text>
-                </View>
-                <Text style={styles.resultPrice}>{inr(item.price)}</Text>
-                <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
-              </TouchableOpacity>
-            )}
-          />
-        )}
-      </View>
-    );
+  // 1. Exact Match (Raw String Match)
+  if (raw === token) {
+    return 100 * fieldWeight;
   }
 
+  // 2. Case-Insensitive Exact Match
+  if (raw.toLowerCase() === token) {
+    return 90 * fieldWeight;
+  }
+
+  // 3. Normalized Exact Match
+  if (norm === token) {
+    return 80 * fieldWeight;
+  }
+
+  // 4. Word Boundary / Substring Match
+  if (norm.includes(token)) {
+    const words = norm.split(" ");
+    const isWordStart = words.some((w) => w.startsWith(token));
+    return (isWordStart ? 65 : 50) * fieldWeight;
+  }
+
+  // 5. Fuzzy / Misspelling Match
+  const targetWords = norm.split(" ").filter(Boolean);
+  let bestFuzzyScore = 0;
+
+  for (const word of targetWords) {
+    if (word.includes(token) || token.includes(word)) {
+      const subScore = 40 * fieldWeight;
+      if (subScore > bestFuzzyScore) bestFuzzyScore = subScore;
+      continue;
+    }
+
+    const dist = getLevenshteinDistance(token, word);
+    const maxDist = getMaxAllowedDistance(token.length);
+
+    if (dist <= maxDist) {
+      const matchScore = (35 - dist * 8) * fieldWeight;
+      if (matchScore > bestFuzzyScore) {
+        bestFuzzyScore = matchScore;
+      }
+    }
+  }
+
+  return bestFuzzyScore;
+}
+
+// Calculate cumulative score across all metadata fields
+function calculateProductScore(item, queryStr) {
+  const normQuery = normalizeText(queryStr);
+  if (!normQuery) return 0;
+
+  const queryTokens = normQuery.split(" ").filter(Boolean);
+  if (queryTokens.length === 0) return 0;
+
+  const fields = [
+    { value: item.name || item.title || item.label, weight: 1.0 },
+    { value: item.brand || item.vendor, weight: 0.8 },
+    { value: item.category || item.cat || item.type, weight: 0.6 },
+    { value: item.description || item.desc, weight: 0.3 },
+  ];
+
+  let totalProductScore = 0;
+
+  for (const token of queryTokens) {
+    let bestScoreForToken = 0;
+
+    for (const { value, weight } of fields) {
+      if (!value) continue;
+      const score = getFieldTokenScore(token, value, weight);
+      if (score > bestScoreForToken) {
+        bestScoreForToken = score;
+      }
+    }
+
+    if (bestScoreForToken < 10) {
+      return 0; 
+    }
+
+    totalProductScore += bestScoreForToken;
+  }
+
+  return totalProductScore;
+}
+
+export default function SearchOverlay({ visible, onClose, navigation }) {
+  const shopContext = useShop();
+
+  // Safely fallback to allProducts master inventory first
+  const rawProducts = useMemo(() => {
+    if (Array.isArray(shopContext?.allProducts) && shopContext.allProducts.length > 0) {
+      return shopContext.allProducts;
+    }
+    return shopContext?.products || [];
+  }, [shopContext]);
+
+  const theme = shopContext?.theme;
+  const setSelectedProduct = shopContext?.setSelectedProduct;
+
+  const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [loading, setLoading] = useState(false);
+
+  // --- Pagination State ---
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const primaryColor = theme?.bg?.[1] || "#0f172a";
+
+  const categories = useMemo(() => {
+    if (!Array.isArray(rawProducts) || rawProducts.length === 0) return ["All"];
+    const cats = Array.from(
+      new Set(rawProducts.map((p) => p?.category || p?.cat || p?.type).filter(Boolean))
+    );
+    return ["All", ...cats];
+  }, [rawProducts]);
+
+
+  function capitalizeWord(str) {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+  // Priority-based ranked products pipeline
+  const filteredProducts = useMemo(() => {
+    if (!Array.isArray(rawProducts) || rawProducts.length === 0) return [];
+    if (!query.trim() && selectedCategory === "All") return [];
+
+    // Category filter
+    const categoryFiltered = rawProducts.filter((item) => {
+      if (selectedCategory === "All") return true;
+      const itemCat = normalizeText(item?.category || item?.cat || item?.type || "");
+      return itemCat === normalizeText(selectedCategory);
+    });
+
+    if (!query.trim()) {
+      return categoryFiltered;
+    }
+
+    // Score each item, filter unmapped ones, and sort by highest priority score
+    return categoryFiltered
+      .map((item) => ({
+        item,
+        score: calculateProductScore(item, query),
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.item);
+  }, [query, selectedCategory, rawProducts]);
+
+  // Paginated visible items subset
+  const displayedProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
+
+  const handleQueryChange = (text) => {
+    setQuery(text);
+    setVisibleCount(PAGE_SIZE); // Reset pagination on new search
+    setLoading(true);
+    setTimeout(() => setLoading(false), 100);
+  };
+
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
+    setVisibleCount(PAGE_SIZE); // Reset pagination on category change
+  };
+
+  const handleShowMore = () => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  };
+
+  const handleSelectProduct = (product) => {
+    Keyboard.dismiss();
+    onClose();
+    if (setSelectedProduct) {
+      setSelectedProduct(product);
+    }
+  };
+
+  const handleClear = () => {
+    setQuery("");
+    setSelectedCategory("All");
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  if (!visible) return null;
+
+  const hasMore = visibleCount < filteredProducts.length;
+
   return (
-    <FlatList
-      style={styles.fill}
-      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-      keyboardShouldPersistTaps="handled"
-      data={[]}
-      renderItem={null}
-      ListHeaderComponent={
-        <>
-          {recentSearches.length > 0 && (
-            <View style={{ marginBottom: 22 }}>
-              <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>Recent Searches</Text>
-                <TouchableOpacity onPress={clearRecentSearches}>
-                  <Text style={[styles.clearAll, { color: theme.bg[1] }]}>
-                    Clear all
-                  </Text>
-                </TouchableOpacity>
+    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <SafeAreaView style={styles.container}>
+        {/* Top Floating Search Header */}
+        <View style={styles.headerContainer}>
+          <View style={styles.searchBar}>
+            <TouchableOpacity onPress={onClose} style={styles.iconBtn} hitSlop={8}>
+              <Ionicons name="arrow-back" size={22} color="#334155" />
+            </TouchableOpacity>
+            
+
+            <TextInput
+              style={styles.input}
+              placeholder="Search products, brands, categories..."
+              placeholderTextColor="#94a3b8"
+              value={query}
+              onChangeText={handleQueryChange}
+              autoFocus
+              returnKeyType="search"
+            />
+
+            {loading ? (
+              <ActivityIndicator size="small" color={primaryColor} style={{ marginRight: 6 }} />
+            ) : query.length > 0 ? (
+              <TouchableOpacity onPress={handleClear} style={styles.iconBtn} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Category Filter Chips */}
+          {categories.length > 1 && (
+            <FlatList
+              horizontal
+              data={categories}
+              keyExtractor={(item) => item}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryList}
+              renderItem={({ item }) => {
+                const active = selectedCategory === item;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.chip,
+                      active && { backgroundColor: primaryColor, borderColor: primaryColor },
+                    ]}
+                    onPress={() => handleCategorySelect(item)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+        </View>
+
+        {/* Results Body */}
+        <View style={styles.body}>
+          {!query.trim() && selectedCategory === "All" ? (
+            /* Popular Searches State */
+            <View style={styles.suggestionContainer}>
+              <View style={styles.suggestionHeader}>
+                <Ionicons name="trending-up" size={18} color={primaryColor} />
+                <Text style={styles.suggestionTitle}>Popular Searches</Text>
               </View>
-              <View style={styles.chipWrap}>
-                {recentSearches.map((term) => (
-                  <View key={term} style={styles.recentChip}>
-                    <TouchableOpacity onPress={() => submitSearch(term)}>
-                      <Text style={styles.recentChipText}>{term}</Text>
-                    </TouchableOpacity>
+
+              <View style={styles.tagWrap}>
+                {QUICK_SUGGESTIONS.map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={styles.suggestionTag}
+                    onPress={() => handleQueryChange(item)}
+                  >
+                    <Ionicons name="search-outline" size={14} color="#64748b" />
+                    <Text style={styles.tagText}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : (
+            /* Fuzzy Results List with Controlled Pagination */
+            <FlatList
+              data={displayedProducts}
+              keyExtractor={(item, index) =>
+                item.id?.toString() || item._id?.toString() || index.toString()
+              }
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.resultsList}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const itemName = item.name || item.title || item.label || "Unnamed Product";
+                const itemCat = item.category || item.cat || item.type || "General";
+                const itemPrice = item.price || item.cost || 0;
+                const itemImage =
+                  item.image || item.img || item.thumbnail || "https://via.placeholder.com/150";
+
+                return (
+                  <TouchableOpacity
+                    style={styles.productCard}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectProduct(item)}
+                  >
+                    <Image source={{ uri: itemImage }} style={styles.productImg} />
+
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productCategory}>{itemCat}</Text>
+                      <Text style={styles.productName} numberOfLines={1}>
+                        {itemName}
+                      </Text>
+                      <Text style={styles.productPrice}>
+                        {typeof inr === "function" ? inr(itemPrice) : `₹${itemPrice}`}
+                      </Text>
+                    </View>
+                    
+
+                    <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+                  </TouchableOpacity>
+                );
+              }}
+              /* Pagination Footer Component */
+              ListFooterComponent={
+                hasMore ? (
+                  <View style={styles.paginationFooter}>
+                    <Text style={styles.counterText}>
+                      Showing {displayedProducts.length} of {filteredProducts.length} products
+                    </Text>
+
                     <TouchableOpacity
-                      onPress={() => removeRecentSearch(term)}
-                      hitSlop={8}
+                      style={[styles.showMoreBtn, { backgroundColor: primaryColor }]}
+                      onPress={handleShowMore}
+                      activeOpacity={0.8}
                     >
-                      <Ionicons name="close" size={13} color="#94a3b8" />
+                      <Text style={styles.showMoreBtnText}>Show More</Text>
+                      <Ionicons name="chevron-down" size={16} color="#ffffff" />
                     </TouchableOpacity>
                   </View>
-                ))}
-              </View>
-            </View>
+                ) : displayedProducts.length > 0 ? (
+                  <Text style={styles.endText}>Showing all {filteredProducts.length} results</Text>
+                ) : null
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="search-outline" size={48} color="#cbd5e1" />
+                  <Text style={styles.emptyTitle}>No products found</Text>
+                  <Text style={styles.emptySub}>
+                    {rawProducts.length === 0
+                      ? "Loading products inventory..."
+                      : `We couldn't find anything matching "${query}".`}
+                  </Text>
+                </View>
+              }
+            />
           )}
-
-          {trendingSearches.length > 0 && (
-            <View style={{ marginBottom: 22 }}>
-              <View style={styles.sectionHead}>
-                <Ionicons name="flame" size={15} color="#f97316" />
-                <Text style={[styles.sectionTitle, { marginLeft: 4 }]}>
-                  Trending Now
-                </Text>
-              </View>
-              <View style={styles.chipWrap}>
-                {trendingSearches.map((term) => (
-                  <TouchableOpacity
-                    key={term}
-                    style={[
-                      styles.trendChip,
-                      { borderColor: theme.bg[1] + "33" },
-                    ]}
-                    onPress={() => submitSearch(term)}
-                  >
-                    <Ionicons
-                      name="trending-up"
-                      size={12}
-                      color={theme.bg[1]}
-                    />
-                    <Text
-                      style={[styles.trendChipText, { color: theme.bg[1] }]}
-                      numberOfLines={1}
-                    >
-                      {term}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {categories.length > 0 && (
-            <View>
-              <Text style={styles.sectionTitle}>Browse Categories</Text>
-              <View style={[styles.chipWrap, { marginTop: 10 }]}>
-                {categories.slice(0, 10).map((c) => (
-                  <TouchableOpacity
-                    key={c.slug}
-                    style={styles.categoryChip}
-                    onPress={() => selectCategory(c.slug)}
-                  >
-                    <Text style={styles.categoryChipText}>{c.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-        </>
-      }
-    />
+        </View>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#ffffff" },
-  centerNote: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 40,
-  },
-  centerNoteText: { color: "#94a3b8", fontSize: 13 },
-  noResultsTitle: {
-    fontWeight: "800",
-    color: "#334155",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  noResultsSub: {
-    fontSize: 12,
-    color: "#94a3b8",
-    textAlign: "center",
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  resultsHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#f8fafc",
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  headerContainer: {
+    backgroundColor: "#ffffff",
+    paddingTop: 8,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
+    elevation: 3,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
-  resultsHeaderText: { fontSize: 12, color: "#64748b" },
-  resultsHeaderBold: { fontWeight: "700", color: "#0f172a" },
-  resultRow: {
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f8fafc",
-  },
-  resultThumb: {
-    width: 42,
-    height: 42,
-    backgroundColor: "#f8fafc",
-    borderRadius: 10,
-  },
-  resultTitle: { fontSize: 13, fontWeight: "700", color: "#1e293b" },
-  resultBrand: { fontSize: 11, color: "#94a3b8", marginTop: 1 },
-  resultPrice: { fontSize: 13, fontWeight: "800", color: "#0f172a" },
-  footerContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  showMoreButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    backgroundColor: "#ffffff",
-    width: "100%",
-  },
-  showMoreText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  sectionHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  sectionTitle: { fontSize: 13, fontWeight: "800", color: "#1e293b" },
-  clearAll: { fontSize: 12, fontWeight: "700" },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  recentChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
     backgroundColor: "#f1f5f9",
     borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  recentChipText: { fontSize: 12, color: "#475569", fontWeight: "600" },
-  trendChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#fff",
-    borderWidth: 1.2,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    maxWidth: "100%",
-  },
-  trendChipText: { fontSize: 12, fontWeight: "700" },
-  categoryChip: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 14,
+    marginHorizontal: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  input: { flex: 1, fontSize: 14, color: "#0f172a", marginLeft: 8, paddingVertical: 4 },
+  iconBtn: { padding: 4 },
+  categoryList: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  chipText: { fontSize: 12, fontWeight: "600", color: "#64748b" },
+  chipTextActive: { color: "#ffffff", fontWeight: "700" },
+  body: { flex: 1 },
+  suggestionContainer: { padding: 20 },
+  suggestionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
+  suggestionTitle: { fontSize: 14, fontWeight: "800", color: "#0f172a" },
+  tagWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  suggestionTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  tagText: { fontSize: 13, color: "#334155", fontWeight: "500" },
+  resultsList: { padding: 16, gap: 10 },
+  productCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    padding: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
-  categoryChipText: { fontSize: 12, fontWeight: "700", color: "#334155" },
+  productImg: { width: 52, height: 52, borderRadius: 10, backgroundColor: "#f1f5f9" },
+  productInfo: { flex: 1, marginLeft: 12 },
+  productCategory: { fontSize: 10, fontWeight: "700", color: "#94a3b8", textTransform: "uppercase" },
+  productName: { fontSize: 14, fontWeight: "700", color: "#0f172a", marginVertical: 2 },
+  productPrice: { fontSize: 13, fontWeight: "800", color: "#059669" },
+
+  // --- Pagination Styles ---
+  paginationFooter: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    marginBottom: 24,
+    gap: 10,
+  },
+  counterText: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  showMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  showMoreBtnText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  endText: {
+    textAlign: "center",
+    fontSize: 12,
+    color: "#94a3b8",
+    marginVertical: 16,
+    fontWeight: "500",
+  },
+
+  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 16, fontWeight: "800", color: "#0f172a", marginTop: 12 },
+  emptySub: { fontSize: 12, color: "#64748b", textAlign: "center", marginTop: 6, lineHeight: 18 },
 });
-
-

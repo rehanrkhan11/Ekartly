@@ -242,26 +242,28 @@ export function ShopProvider({ children }) {
   const bootstrap = useCallback(async () => {
     setLoading(true);
     try {
-      const [cats, prods] = await Promise.all([fetchCategories(), fetchProducts(20)]);
+      const [cats, prods, everything] = await Promise.all([
+        fetchCategories(),
+        fetchProducts(20),
+        fetchAllProducts().catch(() => []),
+      ]);
+
       setCategories(Array.isArray(cats) ? cats.slice(0, 14) : []);
-      setProducts(Array.isArray(prods) && prods.length > 0 ? prods : FALLBACK_PRODUCTS);
+      
+      const masterList = Array.isArray(everything) && everything.length > 0 
+        ? everything 
+        : (Array.isArray(prods) && prods.length > 0 ? prods : FALLBACK_PRODUCTS);
+
+      setAllProducts(masterList);
+      buildSearchIndex(masterList);
+
+      setProducts(Array.isArray(prods) && prods.length > 0 ? prods : masterList.slice(0, 20));
     } catch (e) {
       console.warn("bootstrap failed, using fallback data", e);
       setProducts(FALLBACK_PRODUCTS);
+      setAllProducts(FALLBACK_PRODUCTS);
     } finally {
       setLoading(false);
-    }
-
-    try {
-      const everything = await fetchAllProducts();
-      if (Array.isArray(everything) && everything.length > 0) {
-        setAllProducts(everything);
-        buildSearchIndex(everything);
-      } else {
-        setAllProducts(FALLBACK_PRODUCTS);
-      }
-    } catch (e) {
-      console.warn("search index build failed", e);
     }
   }, []);
 
@@ -391,6 +393,7 @@ export function ShopProvider({ children }) {
     categories,
     activeCategory,
     products,
+    allProducts, // Exposing Master Product Catalog for Search
     loading,
     query,
     setQuery,
