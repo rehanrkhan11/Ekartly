@@ -248,18 +248,18 @@ export default function HomeScreen({ navigation }) {
 
           {/* GRID OF SKELETON CARDS */}
           <View style={styles.skeletonRow}>
-            <View style={{ flex: 0.5, paddingRight: 6 }}>
+            <View style={{ flex: 0.5, paddingLeft: 14, paddingRight: 6 }}>
               <ProductCardSkeleton />
             </View>
-            <View style={{ flex: 0.5, paddingLeft: 6 }}>
+            <View style={{ flex: 0.5, paddingLeft: 6, paddingRight: 14 }}>
               <ProductCardSkeleton />
             </View>
           </View>
           <View style={styles.skeletonRow}>
-            <View style={{ flex: 0.5, paddingRight: 6 }}>
+            <View style={{ flex: 0.5, paddingLeft: 14, paddingRight: 6 }}>
               <ProductCardSkeleton />
             </View>
-            <View style={{ flex: 0.5, paddingLeft: 6 }}>
+            <View style={{ flex: 0.5, paddingLeft: 6, paddingRight: 14 }}>
               <ProductCardSkeleton />
             </View>
           </View>
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   skeletonGrid: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
   },
   skeletonRow: {
     flexDirection: "row",
