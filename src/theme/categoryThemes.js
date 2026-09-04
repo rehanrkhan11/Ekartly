@@ -1,11 +1,11 @@
 // Each theme drives the header gradient, particle field color, and accent tint.
 export const THEMES = {
-  snow: { name: "Snow", bg: ["#0f2f66", "#1c4fa3"], accent: "#eaf3ff", glow: "#bfe0ff", symbol: "❄" },
-  sparkle: { name: "Sparkle", bg: ["#3a0f4d", "#7a1f6b"], accent: "#ffe9fb", glow: "#ffb8f0", symbol: "✦" },
-  leaf: { name: "Fresh", bg: ["#0d3d2a", "#1f7a4d"], accent: "#eafff1", glow: "#9dffc4", symbol: "🍃" },
-  ember: { name: "Ember", bg: ["#4a1006", "#a3320f"], accent: "#fff2ea", glow: "#ffb27a", symbol: "✷" },
-  glow: { name: "Glow", bg: ["#241b40", "#4a3a86"], accent: "#f2efff", glow: "#c9baff", symbol: "●" },
-  petal: { name: "Petal", bg: ["#4d1030", "#a3316b"], accent: "#fff0f6", glow: "#ffb3d6", symbol: "❀" },
+  snow: { name: "Snow", bg: ["#0f2f66", "#1c4fa3"], accent: "#eaf3ff", glow: "#bfe0ff", symbol: "❄", badgeBg: "#EBF3FF" },
+  sparkle: { name: "Sparkle", bg: ["#3a0f4d", "#7a1f6b"], accent: "#ffe9fb", glow: "#ffb8f0", symbol: "✦", badgeBg: "#FDF0F9" },
+  leaf: { name: "Fresh", bg: ["#0d3d2a", "#1f7a4d"], accent: "#eafff1", glow: "#9dffc4", symbol: "🍃", badgeBg: "#EBFDF3" },
+  ember: { name: "Ember", bg: ["#4a1006", "#a3320f"], accent: "#fff2ea", glow: "#ffb27a", symbol: "✷", badgeBg: "#FFF4EE" },
+  glow: { name: "Glow", bg: ["#241b40", "#4a3a86"], accent: "#f2efff", glow: "#c9baff", symbol: "●", badgeBg: "#F3F0FF" },
+  petal: { name: "Petal", bg: ["#4d1030", "#a3316b"], accent: "#fff0f6", glow: "#ffb3d6", symbol: "❀", badgeBg: "#FFF0F5" },
 };
 
 const RULES = [
@@ -34,6 +34,7 @@ const EMOJI = {
   "womens-dresses": "👗", "womens-jewellery": "💍", "womens-shoes": "👠",
   "womens-watches": "⌚", automotive: "🚗", lighting: "💡",
 };
+
 export const emojiFor = (slug) => EMOJI[slug] || "🛍️";
 
 export const titleCase = (s = "") =>

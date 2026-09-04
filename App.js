@@ -39,7 +39,12 @@ export default function App() {
 const styles = StyleSheet.create({
   toastBanner: {
     position: "absolute",
-    bottom: 75,
+    // ==========================================
+    // UPDATED HERE: Increased bottom spacing to 110
+    // so toasts float above the new navigation bar
+    // ==========================================
+    bottom: 110,
+    // ==========================================
     alignSelf: "center",
     paddingHorizontal: 18,
     paddingVertical: 10,
